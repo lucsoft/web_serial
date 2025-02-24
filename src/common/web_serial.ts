@@ -21,6 +21,7 @@ export interface SerialOptions {
   parity?: ParityType;
   bufferSize?: number;
   flowControl?: FlowControlType;
+  timeout?: number;
 }
 
 export interface SerialOutputSignals {

@@ -15,12 +15,12 @@ export class AIOCB {
 
   read() {
     const result = nix.aio_read(this.data);
-    unwrap(result);
+    return unwrap(result);
   }
 
   write() {
     const result = nix.aio_write(this.data);
-    unwrap(result);
+    return unwrap(result);
   }
 
   async suspend(timeout1?: number, timeout2?: number) {
@@ -37,7 +37,7 @@ export class AIOCB {
         )
         : null,
     );
-    unwrap(result, this.error());
+    return unwrap(result, this.error());
   }
 
   cancel() {
@@ -50,7 +50,9 @@ export class AIOCB {
   }
 
   return() {
+    console.log(`this.data is:`,new TextDecoder().decode(this.data))
     const result = Number(nix.aio_return(this.data));
+    console.log(`result is:`,result)
     return unwrap(result);
   }
 }

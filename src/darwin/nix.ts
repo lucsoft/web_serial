@@ -1,8 +1,9 @@
+// TODO: put errorno inside this open
 const nix = Deno.dlopen("libSystem.dylib", {
   open: {
     parameters: ["buffer", "i32", "i32"],
     result: "i32",
-    nonblocking: true,
+    // nonblocking: true,
   },
 
   ioctl: {
@@ -95,13 +96,13 @@ const nix = Deno.dlopen("libSystem.dylib", {
   read: {
     parameters: ["i32", "buffer", "i32"],
     result: "i32",
-    nonblocking: true,
+    // nonblocking: true,
   },
 
   write: {
     parameters: ["i32", "buffer", "i32"],
     result: "i32",
-    nonblocking: true,
+    // nonblocking: true,
   },
 }).symbols;
 
@@ -135,3 +136,32 @@ export function unwrap(result: number, error?: number) {
   }
   return result;
 }
+
+// note Im pretty sure these are different than linix values for the same names (these came from testing on macOS with Apple clang version 14.0.0)
+export const CREAD =    0b000000100000000000n
+export const CLOCAL =   0b001000000000000000n
+export const PARENB =   0b000001000000000000n
+export const PARODD =   0b000010000000000000n
+export const CSTOPB =   0b000000010000000000n
+export const CSIZE =    0b000000001100000000n
+export const CS7 =      0b000000001000000000n
+export const CS8 =      0b000000001100000000n
+export const CRTSCTS =  0b110000000000000000n
+export const IXON =     0b000000001000000000n
+export const IXOFF =    0b000000010000000000n
+export const IXANY =    0b000000100000000000n
+export const ICANON =   0b000000000100000000n
+export const ECHO =     0b000000000000001000n
+export const ECHOE =    0b000000000000000010n
+export const ISIG =     0b000000000010000000n
+export const VMIN =     0b000000000000010000n
+export const VTIME =    0b000000000000010001n
+export const TCSANOW =  0b000000000000000000n
+export const F_SETFL =  0b000000000000000100n
+export const O_RDWR =   0b000000000000000010n
+export const O_NOCTTY = 0b100000000000000000n
+export const O_NDELAY = 0b000000000000000100n
+export const OPOST =    0b000000000000000001n
+
+export const INPCK =    0b000000000000010000n
+export const IGNPAR =   0b000000000000000100n

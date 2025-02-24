@@ -1,20 +1,19 @@
 import { FlowControlType, ParityType } from "../common/web_serial.ts";
-import nix, { unwrap } from "./nix.ts";
+import nix, { unwrap, IXANY, PARENB, PARODD, INPCK, IGNPAR, IXON, IXOFF, CRTSCTS, CSTOPB, CS7, CS8, CSIZE } from "./nix.ts";
 
-const PARENB = 0x00001000;
-const PARODD = 0x00002000;
-const INPCK = 0x00000010;
-const IGNPAR = 0x00000004;
+function setBit(dataView, index, value) {
+    const byteIndex = Math.floor(index / 4);
+    const bitPosition = index % 4;
 
-const IXON = 0x00000200;
-const IXOFF = 0x00000400;
-const CRTSCTS = 0x00010000 | 0x00020000;
+    // Read the byte at byteIndex
+    let currentByte = dataView.getUint8(byteIndex);
 
-const CSTOPB = 0x00000400;
-const CS7 = 0x00000200;
-const CS8 = 0x00000300;
-const CSIZE = 0x00000300;
+    // Set the specific bit (bitPosition) to 1
+    let modifiedByte = currentByte | (1 << bitPosition);
 
+    // Write the modified byte back to the DataView
+    dataView.setUint8(byteIndex, modifiedByte);
+}
 /**
  * struct termios {
  *  tcflag_t c_iflag;      // input flags
@@ -42,30 +41,29 @@ export class Termios {
     this.view = new DataView(this.data.buffer);
   }
 
-  static get(fd: number) {
-    const termios = new Termios();
-    unwrap(nix.tcgetattr(fd, termios.data));
-    nix.cfsetospeed(termios.data, 9600);
-    nix.cfsetispeed(termios.data, 9600);
-    return termios;
-  }
+//   static get(fd: number) {
+//     const termios = new Termios();
+//     unwrap(nix.tcgetattr(fd, termios.data));
+//     nix.cfsetospeed(termios.data, 9600);
+//     nix.cfsetispeed(termios.data, 9600);
+//     return termios;
+//   }
 
-  set(fd: number, baudRate: number) {
-    nix.cfsetospeed(this.data, baudRate);
-    nix.cfsetispeed(this.data, baudRate);
+//   set(fd: number, baudRate: number) {
+//     nix.cfsetospeed(this.data, baudRate);
+//     nix.cfsetispeed(this.data, baudRate);
 
-    unwrap(nix.tcsetattr(fd, 0, this.data));
+//     unwrap(nix.tcsetattr(fd, 0, this.data));
 
-    // if (baudRate > 0) {
-    //   unwrap(nix.ioctl1(
-    //     fd,
-    //     0x80045402,
-    //     new Uint8Array(
-    //       new BigUint64Array([BigInt(baudRate)]).buffer,
-    //     ),
-    //   ));
-    // }
-  }
+//     //   unwrap(nix.ioctl1(
+//     //     fd,
+//     //     0x80045402,
+//     //     new Uint8Array(
+//     //       new BigUint64Array([BigInt(baudRate)]).buffer,
+//     //     ),
+//     //   ));
+//     // }
+//   }
 
   setParity(parity: ParityType) {
     switch (parity) {
@@ -92,7 +90,7 @@ export class Termios {
     switch (flowControl) {
       case "none":
         this.cflag &= ~CRTSCTS;
-        this.iflag &= ~(IXON | IXOFF);
+        this.iflag &= ~(IXON | IXOFF | IXANY);
         break;
       case "software":
         this.cflag &= ~CRTSCTS;
@@ -100,7 +98,7 @@ export class Termios {
         break;
       case "hardware":
         this.cflag |= CRTSCTS;
-        this.iflag &= ~(IXON | IXOFF);
+        this.iflag &= ~(IXON | IXOFF | IXANY);
         break;
     }
   }

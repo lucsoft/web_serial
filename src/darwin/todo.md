@@ -1,0 +1,1 @@
+- seems .read() is not working (hangs with "Operation now in progress")

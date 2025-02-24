@@ -1,6 +1,6 @@
 import { cString, Deferred } from "../common/util.ts";
 import { AIOCB } from "./aio.ts";
-import nix, { UnixError, unwrap } from "./nix.ts";
+import nix, { UnixError, unwrap, CREAD, CLOCAL, PARENB, PARODD, CSTOPB, CSIZE, CS7, CS8, CRTSCTS, IXON, IXOFF, IXANY, ICANON, ECHO, ECHOE, ISIG, VMIN, VTIME, TCSANOW, F_SETFL, O_RDWR, O_NOCTTY, O_NDELAY, OPOST, INPCK, IGNPAR, } from "./nix.ts";
 import { Termios } from "./termios.ts";
 import {
   SerialOptions,
@@ -9,11 +9,35 @@ import {
   SerialPortInfo,
 } from "../common/web_serial.ts";
 
+function bigIntTo64IntLittleEndianBytes(bigInt) {
+    const buffer = new ArrayBuffer(8); // 64-bit number (8 bytes)
+    const view = new DataView(buffer);
+    // Store the BigInt into the DataView in little-endian format
+    view.setBigUint64(0, bigInt, true); // true for little-endian
+    // Convert the ArrayBuffer into a Uint8Array
+    const uint8Array = new Uint8Array(buffer);
+    return uint8Array;
+}
+function int64LittleEndianBytesToBigInt(uint8Array) {
+    if (uint8Array instanceof Array) {
+        if (uint8Array.length != 8) {
+            throw new Error("Invalid input: Array must have exactly 8 elements for int64LittleEndianBytesToBigInt()");
+        }
+        uint8Array = new Uint8Array(uint8Array);
+    }
+    const buffer = uint8Array.buffer;
+    const view = new DataView(buffer);
+    // Extract the BigInt from the DataView, assuming little-endian byte order
+    const bigInt = view.getBigUint64(0, true); // true for little-endian
+    return bigInt;
+}
+
+let debug = true;
 export class SerialPortDarwin extends EventTarget implements SerialPort {
   #info: SerialPortInfo;
-  #fd?: number;
+  fd?: number;
 
-  #state = "closed";
+  #state = "uninitialized";
   #bufferSize?: number;
   #readable?: ReadableStream<Uint8Array>;
   #readFatal = false;
@@ -25,14 +49,21 @@ export class SerialPortDarwin extends EventTarget implements SerialPort {
     super();
     this.#info = info;
   }
+  
+  get name() {
+    return this.#info.name
+  }
 
   getInfo(): Promise<SerialPortInfo> {
     return Promise.resolve(this.#info);
   }
 
   async open(options: SerialOptions) {
-    if (this.#state !== "closed") {
+    if (this.#state == "opened") {
       throw new DOMException("Port is already open", "InvalidStateError");
+    }
+    if (debug) {
+        console.log(`opening port ${this.name}`)
     }
 
     if (options.dataBits && options.dataBits !== 7 && options.dataBits !== 8) {
@@ -64,52 +95,264 @@ export class SerialPortDarwin extends EventTarget implements SerialPort {
         "Invalid parity, must be one of: none, even, odd",
       );
     }
-
+    
+    debug && console.log(`calling nix.open()`)
+    const shouldCreate = 0;
     const fd = await nix.open(
       cString(this.#info.name),
-      0x802,
-      0,
+      Number(O_RDWR | O_NOCTTY | O_NDELAY),
+      shouldCreate,
     );
     unwrap(fd);
-    this.#fd = fd;
+    this.fd = fd;
+    
+    // 
+    // set all the termios settings
+    // 
+        var termiosStruct = new Uint8Array(72)
+        unwrap(nix.tcgetattr(fd, termiosStruct));
 
-    unwrap(nix.ioctl(fd, 536900621));
+        const timeoutInSeconds = options.timeout ?? 2
+        let timeoutInTenthsOfASecond = Math.round(timeoutInSeconds*10)
+        if (timeoutInTenthsOfASecond < 1) {
+            console.warn(`Given timeout of ${timeoutInSeconds} seconds, clamping to 0.1 seconds`)
+            timeoutInTenthsOfASecond = 1
+        } else if (timeoutInTenthsOfASecond > 255) {
+            console.warn(`Given timeout of ${timeoutInSeconds} seconds larger than max of 25.5 seconds, clamping to 25.5 seconds`)
+            timeoutInTenthsOfASecond = 255
+        }
+        // const cc = termios.cc
+        // cc[VMIN] = 0; // minimum number of characters to read
+        // cc[VTIME] = timeoutInTenthsOfASecond; // minimum number of characters to read
+        // console.debug(`cc is:`,cc)
+        // termios.cc = cc
+        // this.termios = termios.data
+        // // DEBUGGING ONLY
+        // let termiosFromC = new Uint8Array([
+        //     iflag,  0,  0,   0,   0,   0,  0,  0,   0,   0,   0,   0,
+        //         0,  0,  0,   0,   0, 203,  0,  0,   0,   0,   0,   0,
+        //         0,  0,  0,   0,   0,   0,  0,  0,   4, 255, 255, 127,
+        //        23, 21, 18, 255,   3,  28, 26, 25,  17,  19,  22,  15,
+        //         0, 20, 20, 255,   0,   0,  0,  0, 128,  37,   0,   0,
+        //         0,  0,  0,   0, 128,  37,  0,  0,   0,   0,   0,   0
+        // ])
 
-    let termios = new Termios();
-    unwrap(nix.tcgetattr(fd, termios.data));
+        // DEBUGGING ONLY
+        var iflag   = [0,0,0,0,0,0,0,0];
+        var oflag   = [0,0,0,0,0,0,0,0,];
+        var cflag   = [0,203,0,0,0,0,0,0,];
+        var lflag   = [0,0,0,0,0,0,0,0];
+        var cc      = [4, 255, 255, 127, 23, 21, 18, 255, 3, 28, 26, 25, 17, 19, 22, 15, 0, 20, 20, 255];
+        var unknown = [0,0,0,0];
+        var ispeed  = [128,37,0,0,0,0,0,0]; // [128,37,0,0,0,0,0,0] means baudRate = 9600, (cfsetispeed() below changes this though)
+        var ospeed  = [128,37,0,0,0,0,0,0];
+        var termiosStruct = new Uint8Array([
+            ...iflag,  ...oflag, ...cflag, ...lflag, ...cc, ...unknown, ...ispeed, ...ospeed,
+        ])
+        console.debug(`termiosStruct start is:`,termiosStruct)
+        // set: baudRate
+        unwrap(nix.cfsetispeed(termiosStruct, options.baudRate));
+        unwrap(nix.cfsetospeed(termiosStruct, options.baudRate));
+        console.debug(`termiosStruct after baudRate is:`,termiosStruct)
+        
+        var iflag   = int64LittleEndianBytesToBigInt(termiosStruct.slice(0,8));
+        var oflag   = int64LittleEndianBytesToBigInt(termiosStruct.slice(8,16));
+        var cflag   = int64LittleEndianBytesToBigInt(termiosStruct.slice(16,24));
+        var lflag   = int64LittleEndianBytesToBigInt(termiosStruct.slice(24,32));
+        var cc      = termiosStruct.slice(32,52);
+        // var cc      = [4, 255, 255, 127, 23, 21, 18, 255, 3, 28, 26, 25, 17, 19, 22, 15, 0, 20, 20, 255];
+        console.debug(`cc is:`,cc)
+        var unknown = termiosStruct.slice(52,56);
+        var ispeed  = termiosStruct.slice(56,64);
+        var ospeed  = termiosStruct.slice(64,72);
+        
+        cc[VMIN]    = 0;
+        // set: timeout
+        cc[VTIME]   = timeoutInTenthsOfASecond;
 
-    termios.cflag |= 34816;
+        console.debug(`cflag before parity is:`,bigIntTo64IntLittleEndianBytes(cflag))
+        
+        // set: size
+        cflag &= ~CSIZE;       // Clear data size bits
+        switch (options.dataBits) {
+            case 7:
+                cflag |= CS7;
+                break;
+            case 8:
+                cflag |= CS8;
+                break;
+        }
 
-    nix.cfmakeraw(termios.data);
+        // set: parity
+        switch (options.parity) {
+            case "odd":
+                cflag |= PARENB; // parity enable = on
+                cflag |= PARODD; // odd parity
+                
+                // iflag |= INPCK; // not sure what this does/did
+                // iflag &= ~IGNPAR;
+                break;
+            case "even":
+                cflag |= PARENB; // parity enable = on
+                cflag &= ~PARODD; // even parity
+                
+                // iflag |= INPCK;
+                // iflag &= ~IGNPAR;
+                break;
+            default:
+                cflag &= ~PARENB;      // Disable parity
+                cflag &= ~(PARENB | PARODD);
+                
+                // iflag &= ~INPCK;
+                // iflag |= IGNPAR;
+                break;
+        }
+        console.debug(`cflag after parity is:`,bigIntTo64IntLittleEndianBytes(cflag))
+        
+        // set: stop bits
+        switch (options.stopBits) {
+            case 1:
+                cflag &= ~CSTOPB;
+                break;
+            case 2:
+                cflag |= CSTOPB;
+                break;
+        }
 
-    unwrap(nix.tcsetattr(fd, 0, termios.data));
+        // set: flow control
+        switch (options.flowControl) {
+            case "software":
+                cflag &= ~CRTSCTS;
+                iflag |= IXON | IXOFF;
+                break;
+            case "hardware":
+                cflag |= CRTSCTS;
+                iflag &= ~(IXON | IXOFF | IXANY);
+                break;
+            default:
+                cflag &= ~CRTSCTS;
+                iflag &= ~(IXON | IXOFF | IXANY);
+        }
+        
 
-    const actualTermios = new Termios();
-    unwrap(nix.tcgetattr(fd, actualTermios.data));
+        cflag |= CREAD | CLOCAL;
+        lflag &= ~(ICANON | ECHO | ECHOE | ISIG); // make raw
 
-    if (
-      actualTermios.iflag !== termios.iflag ||
-      actualTermios.oflag !== termios.oflag ||
-      actualTermios.cflag !== termios.cflag ||
-      actualTermios.lflag !== termios.lflag
-    ) {
-      throw new Error("Failed to apply termios settings");
-    }
+        // [
+        //     0,  0,  0,   0, 0,   0,  0,  0,  0,   0,   0,   0,
+        //     0,  0,  0,   0, 0, 203,  0,  0,  0,   0,   0,   0,
+        //     0,  0,  0,   0, 0,   0,  0,  0,  4, 255, 255, 127,
+        //    23, 21, 18, 255, 3,  28, 26, 25, 17,  19,  22,  15,
+        //     0, 20, 20, 255, 0,   0,  0,  0,  0, 194,   1,   0,
+        //     0,  0,  0,   0, 0, 194,  1,  0,  0,   0,   0,   0
+        // ]
 
-    unwrap(nix.fcntl(fd, 4, 0)); // F_SETFL
-
-    termios = Termios.get(fd);
-    termios.setParity(options.parity ?? "none");
-    termios.setFlowControl(options.flowControl ?? "none");
-    termios.setDataBits(options.dataBits ?? 8);
-    termios.setStopBits(options.stopBits ?? 1);
-    termios.set(fd, options.baudRate);
+        // [
+        //     1,  0,  0,   0, 0,   0,  0,  0,  0, 136,  0,   0,
+        //     0,  0,  0,   0, 0,  75,  0,  0,  0,   0,  0,   0,
+        //     0,  0,  0,   0, 0,   0,  0,  0,  4,   0, 20, 127,
+        //    23, 21, 18, 255, 3,  28, 26, 25, 17,  19, 22,  15,
+        //     1,  0, 20, 255, 0,   0,  0,  0,  0, 194,  1,   0,
+        //     0,  0,  0,   0, 0, 194,  1,  0,  0,   0,  0,   0
+        // ]
+        var termiosStruct = new Uint8Array([
+            ...bigIntTo64IntLittleEndianBytes(iflag),
+            ...bigIntTo64IntLittleEndianBytes(oflag),
+            ...bigIntTo64IntLittleEndianBytes(cflag),
+            ...bigIntTo64IntLittleEndianBytes(lflag),
+            ...cc,
+            ...unknown,
+            ...ispeed,
+            ...ospeed,
+        ])
+        unwrap(nix.tcsetattr(fd, Number(TCSANOW), termiosStruct));
+    
+    // 
+    // sanity check
+    // 
+        // const actualTermios = new Termios();
+        // unwrap(nix.tcgetattr(fd, actualTermios.data));
+        // if (
+        //     actualTermios.iflag !== termios.iflag ||
+        //     actualTermios.oflag !== termios.oflag ||
+        //     actualTermios.cflag !== termios.cflag ||
+        //     actualTermios.lflag !== termios.lflag
+        // ) {
+        //     throw new Error("Failed to apply termios settings");
+        // }
 
     this.#state = "opened";
+    debug && console.log(`this.#state is:`,this.#state)
     this.#bufferSize = options.bufferSize ?? 255;
   }
 
   #aiocbs = new Set<AIOCB>();
+  
+  async write(strOrBytes: string | Uint8Array) {
+    if (typeof strOrBytes === "string") {
+      strOrBytes = new TextEncoder().encode(strOrBytes);
+    }
+    return nix.write(this.fd, strOrBytes, strOrBytes.byteLength)
+  }
+  
+  async read() {
+    const buf = new Uint8Array(this.#bufferSize+1);
+    while (true) {
+        // n = read(fd, buf, 255);
+        let howManyBytes = unwrap(nix.read(this.fd, buf, this.#bufferSize));
+        // if (n > 0) {
+        //     buf[n] = 0;
+        //     printf("read %i bytes: %s", n, buf);
+        // }
+        if (howManyBytes > 0) {
+            buf[howManyBytes] = 0;
+            console.log(`read ${howManyBytes} bytes: ${buf}`);
+            return buf.subarray(0,howManyBytes);
+        }
+    }
+    // // if (count == 0) {
+    // //     n = write(fd, "Hello!", 6);
+    // //     if (n < 0) {
+    // //         perror("Write failed");
+    // //     }
+    // //     count++;
+    // // }
+    // const read = async (buffer: Uint8Array) => {
+    //     const aio = new AIOCB(this.fd!, buffer);
+    //     aio.read();
+    //     this.#aiocbs.add(aio);
+    //     while (true) {
+    //         try {
+    //             let result = await aio.suspend(0, 50);
+    //             debug && console.log(`aio.suspend() result`,result)
+    //         } catch (e) {
+    //             await new Promise(r=>setTimeout(r,1000))
+    //             break;//DEBUGGING
+    //             if (e instanceof UnixError) {
+    //                 // 36 is "Operation now in progress"
+    //                 if (e.errno === 36) {
+    //                     continue;
+    //                 } else {
+    //                     debug && console.log(`aio.suspend() error`,e)
+    //                     break;
+    //                 }
+    //             }
+    //         }
+    //         break;
+    //     }
+    //     console.log(`calling delete`)
+    //     this.#aiocbs.delete(aio);
+    //     console.log(`calling return`)
+    //     return aio.return();
+    // };
+
+    // const buffer = new Uint8Array(numberOfBytesToRead);
+    // const nread = await read(buffer);
+    // if (nread === 0) {
+    //     return;
+    // }
+    // return buffer.subarray(0, nread);
+  }
 
   get readable() {
     if (this.#readable) {
@@ -126,7 +369,7 @@ export class SerialPortDarwin extends EventTarget implements SerialPort {
       type: "bytes",
       pull: async (controller) => {
         const read = async (buffer: Uint8Array) => {
-          const aio = new AIOCB(this.#fd!, buffer);
+          const aio = new AIOCB(this.fd!, buffer);
           aio.read();
           this.#aiocbs.add(aio);
           while (true) {
@@ -187,7 +430,7 @@ export class SerialPortDarwin extends EventTarget implements SerialPort {
       },
 
       cancel: () => {
-        nix.tcflush(this.#fd!, 0);
+        nix.tcflush(this.fd!, 0);
         this.#readable = undefined;
         if (this.#writable === null && this.#pendingClosePromise) {
           this.#pendingClosePromise.resolve();
@@ -214,11 +457,11 @@ export class SerialPortDarwin extends EventTarget implements SerialPort {
 
     const stream = new WritableStream<Uint8Array>({
       write: async (chunk) => {
-        await nix.write(this.#fd!, chunk, chunk.byteLength);
+        await nix.write(this.fd!, chunk, chunk.byteLength);
       },
 
       close: () => {
-        nix.tcflush(this.#fd!, 1);
+        nix.tcflush(this.fd!, 1);
         this.#writable = undefined;
         if (this.#readable === null && this.#pendingClosePromise) {
           this.#pendingClosePromise.resolve();
@@ -227,7 +470,7 @@ export class SerialPortDarwin extends EventTarget implements SerialPort {
       },
 
       abort: () => {
-        nix.tcflush(this.#fd!, 1);
+        nix.tcflush(this.fd!, 1);
         this.#writable = undefined;
         if (this.#readable === null && this.#pendingClosePromise) {
           this.#pendingClosePromise.resolve();
@@ -264,14 +507,14 @@ export class SerialPortDarwin extends EventTarget implements SerialPort {
     console.log("nonexclusive");
     unwrap(
       nix.ioctl(
-        this.#fd!,
+        this.fd!,
         536900622,
       ),
     );
     // set nonblock
-    unwrap(nix.fcntl(this.#fd!, 4, 2048));
+    unwrap(nix.fcntl(this.fd!, 4, 2048));
     console.log("closing??");
-    unwrap(nix.close(this.#fd!));
+    unwrap(nix.close(this.fd!));
     console.log("closed??");
 
     return Promise.resolve();
@@ -279,10 +522,10 @@ export class SerialPortDarwin extends EventTarget implements SerialPort {
     // for (const aio of this.#aiocbs) {
     //   console.log(nix.aio_error(aio.data));
     //   console.log(nix.aio_return(aio.data));
-    //   console.log(nix.aio_cancel(this.#fd!, aio.data));
+    //   console.log(nix.aio_cancel(this.fd!, aio.data));
     // }
 
-    // console.log(unwrap(nix.aio_cancel(this.#fd!, null)));
+    // console.log(unwrap(nix.aio_cancel(this.fd!, null)));
 
     // const pendingClosePromise = new Deferred();
 
