@@ -108,7 +108,7 @@ export function SetupDiClassGuidsFromNameA(className: string) {
   return guids;
 }
 
-export function getPortsWin() {
+export function getPortsWin(): PortInfo[] {
   const devInfoData = Di.allocSP_DEVINFO_DATA({
     cbSize: Di.sizeofSP_DEVINFO_DATA,
   });
