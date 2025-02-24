@@ -355,4 +355,13 @@ export class LinuxSerialPort implements AsyncDisposable {
   async [Symbol.asyncDispose]() {
     await this.close();
   }
+  
+  [Symbol.for("Deno.customInspect")](
+    inspect: typeof Deno.inspect,
+    options: Deno.InspectOptions,
+  ) {
+    return `SerialPort ${
+      inspect({ name: this.name, state: this.#state }, options)
+    }`;
+  }
 }
