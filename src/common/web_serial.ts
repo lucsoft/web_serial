@@ -15,13 +15,31 @@ export type ParityType = "none" | "even" | "odd";
 export type FlowControlType = "none" | "software" | "hardware";
 
 export interface SerialOptions {
-  baudRate: number;
-  dataBits?: number;
-  stopBits?: number;
-  parity?: ParityType;
-  bufferSize?: number;
+  baudRate:
+    | 9600
+    | 19200
+    | 38400
+    | 57600
+    | 115200
+    | 230400
+    | 460800
+    | 500000
+    | 576000
+    | 921600
+    | 1000000
+    | 1152000
+    | 1500000
+    | 2000000
+    | 2500000
+    | 3000000
+    | 3500000
+    | 4000000;
+  dataBits?: 7 | 8; // default 8
+  stopBits?: 1 | 2; // default 1
+  parity?: ParityType; // default none
+  bufferSize?: number; // default 255
   flowControl?: FlowControlType;
-  timeout?: number;
+  timeoutSeconds?: number;
 }
 
 export interface SerialOutputSignals {
