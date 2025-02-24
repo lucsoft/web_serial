@@ -31,6 +31,8 @@ const ports = getPorts();
 console.log("Ports:", ports);
 
 const port = open({ name: ports[0].name, baudRate: 9600 });
+await port.write("Hello, world!");
+let data = await port.read()
 
 // ...
 
