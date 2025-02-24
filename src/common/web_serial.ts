@@ -59,12 +59,7 @@ export interface SerialPort extends EventTarget {
   getInfo(): Promise<SerialPortInfo>;
 
   open(options: SerialOptions): Promise<void>;
-
-  readonly readable: ReadableStream<Uint8Array> | null;
-  readonly writable: WritableStream<Uint8Array> | null;
-
-  setSignals(signals: SerialOutputSignals): Promise<void>;
-  getSignals(): Promise<SerialInputSignals>;
-
   close(): Promise<void>;
+  read(): Promise<ArrayBuffer>;
+  write(buffer: ArrayBuffer | string): Promise<void>;
 }
