@@ -125,7 +125,7 @@ function getPortInfo(service: Deno.PointerValue, name: string): SerialPortInfo {
   }
 }
 
-export function getPortsDarwin(): SerialPort[] {
+export function getPortsDarwin(): SerialPortInfo[] {
   const ports: SerialPortInfo[] = [];
 
   const matchingServices = iokit.IOServiceMatching(kIOSerialBSDServiceValue);
@@ -185,56 +185,6 @@ export function getPortsDarwin(): SerialPort[] {
 
     service = iokit.IOIteratorNext(classesToMatch);
   }
-
-  return ports.map((info) => new SerialPortDarwin(info)).filter(each=>each.name.startsWith("/dev/tty")); // TODO: come back to this
+  
+  return ports.filter(each=>each.name.startsWith("/dev/tty"))
 }
-
-// console.log(`getPortsDarwin() is:`,getPortsDarwin())
-
-// const port = getPortsDarwin()[1];
-
-// console.log(`trying to open ${port} with baudRate 9600`)
-// await port.open({ baudRate: 9600 });
-
-// console.log(`port.writable   is:`,port.writable   )
-// console.log(`port.fd is:`,port.fd)
-
-// import nix from "./nix.ts";
-// const chunk = new TextEncoder().encode("hello world")
-// await nix.write(port.fd!, chunk, chunk.byteLength)
-// console.log(`wrote`)
-// var result = await port.read(10)
-// console.log(`read`,result)
-// console.log(`read`,new TextDecoder().decode(result))
-
-
-
-// async function pipeToConsole(signal: AbortSignal) {
-//   for await (const chunk of port.readable!) {
-//     if (signal.aborted) {
-//       break;
-//     }
-//     await Deno.stdout.write(chunk);
-//   }
-// }
-
-// const abortController = new AbortController();
-// const pipe = pipeToConsole(abortController.signal);
-
-// let on = false;
-
-// const loop = setInterval(async () => {
-//   const writer = port.writable!.getWriter();
-//   on = !on;
-//   await writer.write(new Uint8Array([on ? 1 : 2])).catch(console.error);
-//   writer.releaseLock();
-// }, 500);
-
-// setTimeout(async () => {
-//   clearInterval(loop);
-//   console.log("closing");
-//   abortController.abort();
-//   // await pipe;
-//   await port.close();
-//   console.log("closed");
-// }, 2000);
