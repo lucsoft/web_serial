@@ -21,6 +21,9 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
  */
+
+import type { SerialOptions, SerialPortInfo } from "../common/web_serial.ts";
+
 const O_RDWR = 0x2;
 const O_NOCTTY = 0x100;
 const O_SYNC = 0x101000;
@@ -81,39 +84,6 @@ function numberBaudrateToBaudrateValue(num: number) {
       return 0o010017;
   }
   throw new Error("unsupported baudrate");
-}
-
-type ParityType = "none" | "even" | "odd";
-type FlowControlType = "none" | "hardware";
-
-export interface SerialOptions {
-  baudRate:
-    | 9600
-    | 19200
-    | 38400
-    | 57600
-    | 115200
-    | 230400
-    | 460800
-    | 500000
-    | 576000
-    | 921600
-    | 1000000
-    | 1152000
-    | 1500000
-    | 2000000
-    | 2500000
-    | 3000000
-    | 3500000
-    | 4000000;
-  dataBits?: 7 | 8; // default 8
-  stopBits?: 1 | 2; // default 1
-  parity?: ParityType; // default none
-  bufferSize?: number; // default 255
-  flowControl?: FlowControlType; // default none
-
-  timeoutInDeciseconds?: number;
-  minimumNumberOfCharsRead?: number;
 }
 
 const library = Deno.dlopen(
@@ -208,94 +178,23 @@ async function getNonBlockingErrnoString() {
   return strerror(await nonBlockingErrno());
 }
 
-export class SerialSource {
-  constructor(private serialPort: SerialPort) {}
-
-  async pull(controller: ReadableStreamDefaultController) {
-    if (this.serialPort.fd === undefined) {
-      controller.close();
-      return;
-    }
-
-    const buffer = new Uint8Array(this.serialPort.options!.bufferSize ?? 255);
-    const len = await library.symbols.read(
-      this.serialPort.fd,
-      Deno.UnsafePointer.of(buffer),
-      BigInt(buffer.length),
-    );
-    if (len < 0) {
-      controller.error(
-        `Error while reading: ${await getNonBlockingErrnoString()}`,
-      );
-    }
-    controller.enqueue(buffer.subarray(0, Number(len)));
-  }
-
-  cancel() {
-    this.serialPort.close();
-  }
-}
-
-export class SerialSink {
-  constructor(private serialPort: SerialPort) {}
-
-  async write(data: Uint8Array, controller: WritableStreamDefaultController) {
-    controller.signal.throwIfAborted();
-    if (this.serialPort.fd === undefined) {
-      controller.error("writable closed");
-      return;
-    }
-    // TODO: ensure everything is written
-    const wlen = await library.symbols.write(
-      this.serialPort.fd,
-      Deno.UnsafePointer.of(data),
-      BigInt(data.length),
-    );
-    if (wlen < 0) {
-      controller.error(`Error while writing: ${await geterrnoString()}`);
-    }
-    if (Number(wlen) !== data.length) { // could this happen!?
-      controller.error("Couldn't write data");
-    }
-  }
-
-  async close() {
-    await this.serialPort.close();
-  }
-
-  async abort() {
-    await this.serialPort.close();
-  }
-}
-
 function is_platform_little_endian(): boolean {
   const buffer = new ArrayBuffer(2);
   new DataView(buffer).setInt16(0, 256, true);
   return new Int16Array(buffer)[0] === 256;
 }
 
-export class SerialPort implements AsyncDisposable {
+export class LinuxSerialPort implements AsyncDisposable {
   #fd: number | undefined;
+  #state: "opened" | "closed" | "uninitialized" = "uninitialized";
   options: SerialOptions | undefined;
-  #readable: ReadableStream<Uint8Array> | null = null;
-  #writable: WritableStream<Uint8Array> | null = null;
 
+  constructor(name) {
+    this.name = name;
+  }
+  
   get fd() {
     return this.#fd;
-  }
-
-  get readable() {
-    return this.#readable;
-  }
-
-  get writable() {
-    return this.#writable;
-  }
-
-  constructor(readonly filename: string) {}
-
-  async [Symbol.asyncDispose]() {
-    await this.close();
   }
 
   async open(options: SerialOptions) {
@@ -347,7 +246,7 @@ export class SerialPort implements AsyncDisposable {
     const ttyPtr = Deno.UnsafePointer.of(tty);
 
     if (await library.symbols.tcgetattr(fd, ttyPtr) != 0) {
-      SerialPort.internalClose(fd);
+      LinuxSerialPort._internalClose(fd);
       throw new Error(`tcgetattr: ${await geterrnoString()}`);
     }
 
@@ -372,32 +271,78 @@ export class SerialPort implements AsyncDisposable {
     dataView.setUint32(8, cflag, littleEndian); // c_cflag
 
     dataView.setUint32(12, 0, littleEndian); // c_lflag
-
+    
+    const timeoutInSeconds = options.timeoutSeconds ?? 2
+    let timeoutInTenthsOfASecond = Math.round(timeoutInSeconds*10)
+    if (timeoutInTenthsOfASecond < 1) {
+        console.warn(`Given timeout of ${timeoutInSeconds} seconds, clamping to 0.1 seconds`)
+        timeoutInTenthsOfASecond = 1
+    } else if (timeoutInTenthsOfASecond > 255) {
+        console.warn(`Given timeout of ${timeoutInSeconds} seconds larger than max of 25.5 seconds, clamping to 25.5 seconds`)
+        timeoutInTenthsOfASecond = 255
+    }
     // Wait for up to 1s (10 deciseconds), returning as soon as any data is received.
-    dataView.setUint8(17 + VTIME, options.timeoutInDeciseconds ?? 10);
+    dataView.setUint8(17 + VTIME, timeoutInTenthsOfASecond);
     dataView.setUint8(17 + VMIN, options.minimumNumberOfCharsRead ?? 0);
 
     if (await library.symbols.tcsetattr(fd, TCSANOW, ttyPtr) != 0) {
-      SerialPort.internalClose(fd);
+      LinuxSerialPort._internalClose(fd);
       throw new Error(`tcsetattr: ${await geterrnoString()}`);
     }
 
     this.#fd = fd;
-    this.#readable = new ReadableStream<Uint8Array>(
-      new SerialSource(this),
-    );
-    this.#writable = new WritableStream<Uint8Array>(new SerialSink(this));
+    this.#state = "opened";
   }
-
+  
+  async write(strOrBytes: string | Uint8Array) {
+    if (this.#state = "closed" || this.#state = "uninitialized") {
+        throw new Error(`Can't write to port because port is ${this.#state}`, "InvalidStateError");
+    }
+    if (typeof strOrBytes === "string") {
+      strOrBytes = new TextEncoder().encode(strOrBytes);
+    }
+    const wlen = await library.symbols.write(
+      this.#fd,
+      Deno.UnsafePointer.of(strOrBytes),
+      BigInt(strOrBytes.byteLength),
+    );
+    if (wlen < 0) {
+        throw new Error(`Error while writing: ${await geterrnoString()}`);
+    }
+    if (Number(wlen) !== data.byteLength) {
+        throw new Error("Couldn't write data");
+    }
+  }
+  
+  async read() {
+    if (this.#state = "closed" || this.#state = "uninitialized") {
+        throw new Error(`Can't read from port because port is ${this.#state}`, "InvalidStateError");
+    }
+    const bufferSize = (this?.options?.bufferSize ?? 255)
+    const buffer = new Uint8Array(bufferSize+1);
+    while (true) {
+        const howManyBytes = await library.symbols.read(
+            this.#fd,
+            Deno.UnsafePointer.of(buffer),
+            BigInt(bufferSize),
+        )
+        if (howManyBytes > 0) {
+            return buf.subarray(0,howManyBytes);
+        } else {
+            await new Promise(r=>setTimeout(r,this?.options.waitTime??50))
+        }
+    }
+  }
+  
   async close() {
     const fd = this.#fd;
     this.#fd = undefined;
     this.#writable = null;
     this.#readable = null;
-    await SerialPort.internalClose(fd);
+    await LinuxSerialPort._internalClose(fd);
   }
 
-  static async internalClose(fd: number | undefined) {
+  static async _internalClose(fd: number | undefined) {
     if (fd === undefined) {
       return;
     }
@@ -406,61 +351,8 @@ export class SerialPort implements AsyncDisposable {
       throw new Error(`Error while closing: ${await geterrnoString()}`);
     }
   }
-}
-
-// https://wicg.github.io/serial/#readable-attribute
-export class LineBreakTransformer {
-  #container = "";
-
-  constructor() {}
-
-  transform(chunk: string, controller: TransformStreamDefaultController) {
-    this.#container += chunk;
-    const lines = this.#container.split("\n");
-    this.#container = lines.pop() ?? "";
-    lines.forEach((line: string) => controller.enqueue(line));
+  
+  async [Symbol.asyncDispose]() {
+    await this.close();
   }
-
-  flush(controller: TransformStreamDefaultController) {
-    controller.enqueue(this.#container);
-  }
-}
-
-if (import.meta.main) {
-  const sleep = async (milliseconds: number) => {
-    await (new Promise((resolve) => setTimeout(resolve, milliseconds)));
-    return;
-  };
-
-  await using port = new SerialPort("/dev/ttyACM0");
-
-  await port.open({ baudRate: 115200 });
-
-  const lineReader = port.readable!
-    .pipeThrough(new TextDecoderStream())
-    .pipeThrough(new TransformStream(new LineBreakTransformer()));
-
-  // write stuff every 200msec
-  (async () => {
-    const encoder = new TextEncoder();
-    const writable = port.writable!.getWriter();
-    try {
-      for (let i = 0;; i++) {
-        await writable.write(encoder.encode(`Test message ${i}\n`));
-        await sleep(200);
-      }
-    } catch (e) {
-      console.error(e);
-    }
-  })();
-
-  (async () => {
-    for await (const line of lineReader) {
-      console.log(line);
-    }
-  })();
-
-  // exit after 5 seconds
-  await sleep(5_000);
-  //port.close(); // automatically done by "await using"
 }
