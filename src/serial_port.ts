@@ -1,5 +1,5 @@
 import { SerialOpenOptions } from "./common/serial_port.ts"
-import { SerialPortInfo, SerialPort } from "./common/web_serial.ts";
+import type { SerialPortInfo, SerialPort } from "./common/web_serial.ts";
 // import { getPortsDarwin } from "./darwin/enumerate.ts";
 import { getPortsWin, SerialPortWin } from "./windows/mod.ts"
 import { getPortsDarwin } from "./darwin/enumerate.ts"
@@ -22,9 +22,13 @@ export async function open(options: SerialOpenOptions) : Promise<SerialPort> {
     if (Deno.build.os === "windows") {
         return new SerialPortWin(options)
     } else if (Deno.build.os === "darwin") {
-        return new SerialPortDarwin(options.name).open(options)
+        const port = (new SerialPortDarwin(options.name))
+        port.open(options)
+        return port
     } else if (Deno.build.os === "linux") {
-        return new SerialPort(name).open(options)
+        const port = (new SerialPortLinux(options.name))
+        port.open(options)
+        return port
     } else {
         throw new Error(`Unsupported OS: ${Deno.build.os}`)
     }

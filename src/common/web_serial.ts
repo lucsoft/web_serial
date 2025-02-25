@@ -55,7 +55,7 @@ export interface SerialInputSignals {
   clearToSend: boolean;
 }
 
-export interface SerialPort extends EventTarget {
+export interface SerialPort {
   getInfo(): Promise<SerialPortInfo>;
 
   open(options: SerialOptions): Promise<void>;

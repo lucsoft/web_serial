@@ -295,7 +295,7 @@ export class LinuxSerialPort implements AsyncDisposable {
   }
   
   async write(strOrBytes: string | Uint8Array) {
-    if (this.#state = "closed" || this.#state = "uninitialized") {
+    if (this.#state == "closed" || this.#state == "uninitialized") {
         throw new Error(`Can't write to port because port is ${this.#state}`, "InvalidStateError");
     }
     if (typeof strOrBytes === "string") {
@@ -315,7 +315,7 @@ export class LinuxSerialPort implements AsyncDisposable {
   }
   
   async read() {
-    if (this.#state = "closed" || this.#state = "uninitialized") {
+    if (this.#state == "closed" || this.#state == "uninitialized") {
         throw new Error(`Can't read from port because port is ${this.#state}`, "InvalidStateError");
     }
     const bufferSize = (this?.options?.bufferSize ?? 255)
