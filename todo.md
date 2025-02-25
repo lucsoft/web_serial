@@ -1,0 +1,4 @@
+- figure out a way to pass along the ldLibrary paths (ex: /System/Library/Frameworks/CoreFoundation.framework/CoreFoundation)
+- fix the API, darwin uses parity string, windows uses parity number, etc
+- read on window requiring a buffer
+- add .readString method
