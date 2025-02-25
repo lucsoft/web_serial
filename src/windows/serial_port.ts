@@ -3,10 +3,12 @@ import {
   DataBits,
   FlowControl,
   Parity,
-  SerialOpenOptions,
   SerialPort,
   StopBits,
 } from "../common/serial_port.ts";
+import {
+    SerialOptions
+} from "../common/web_serial.ts";
 import { Comm, Foundation, Fs, OverlappedPromise, unwrap } from "./deps.ts";
 
 // deno-fmt-ignore
@@ -95,13 +97,38 @@ const comstat = Comm.allocCOMSTAT();
 
 export class SerialPortWin implements SerialPort {
   #handle: Deno.PointerValue;
-  #timeout = 100;
+  #timeout = 2;
 
   readonly name?: string;
 
   #_dcb: Comm.DCBView;
 
-  constructor(options: SerialOpenOptions) {
+  constructor(options: SerialOptions) {
+    // 
+    // translate the new options into the old options
+    // 
+    if (
+      options.flowControl && options.flowControl !== "none" &&
+      options.flowControl !== "software" && options.flowControl !== "hardware"
+    ) {
+      throw new TypeError(
+        "Invalid flowControl, must be one of: none, software, hardware",
+      );
+    }
+    options.stopBits = options.stopBits == 1 ? StopBits.ONE : StopBits.TWO;
+    options.flowControl = ({
+        "none": FlowControl.NONE,
+        "software": FlowControl.SOFTWARE,
+        "hardware": FlowControl.HARDWARE,
+    })[options.flowControl] || FlowControl.NONE;
+    options.parity = ({
+        "none": Parity.NONE,
+        "even": Parity.EVEN,
+        "odd": Parity.ODD,
+    })[options.parity] || Parity.NONE;
+    options.timeout = options.timeoutSeconds ?? 2;
+    
+    // start the normal handling
     this.#handle = Fs.CreateFileA(
       "\\\\.\\" + options.name,
       Fs.FILE_GENERIC_READ | Fs.FILE_GENERIC_WRITE,
@@ -206,7 +233,8 @@ export class SerialPortWin implements SerialPort {
     return this.#timeout;
   }
 
-  set timeout(ms: number) {
+  set timeout(seconds: number) {
+    const ms = seconds * 1000;
     const timeouts = Comm.allocCOMMTIMEOUTS({
       ReadTotalTimeoutConstant: ms,
     });
@@ -283,7 +311,7 @@ export class SerialPortWin implements SerialPort {
 
   #pending = new Set<AbortController>();
 
-  async read(p: Uint8Array): Promise<number | null> {
+  async _read(p: Uint8Array): Promise<number | null> {
     try {
       const controller = new AbortController();
       const overlapped = new OverlappedPromise(this.#handle, controller.signal);
@@ -302,6 +330,14 @@ export class SerialPortWin implements SerialPort {
     } catch (_) {
       return null;
     }
+  }
+  
+  async read() : Promise<Uint8Array> {
+    const sizeArray = new Uint8Array(1);
+    const buffer = new Uint8Array(255);
+    let actualAmount = await this._read(sizeArray)
+    const n = await this._read(buffer.subarray(0, sizeArray[0]));
+    return buffer.subarray(0, n)
   }
 
   async write(p: Uint8Array): Promise<number> {

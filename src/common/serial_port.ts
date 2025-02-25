@@ -24,12 +24,30 @@ export enum FlowControl {
 
 export interface SerialOpenOptions {
   name: string;
-  baudRate: number;
+  baudRate:
+    | 9600
+    | 19200
+    | 38400
+    | 57600
+    | 115200
+    | 230400
+    | 460800
+    | 500000
+    | 576000
+    | 921600
+    | 1000000
+    | 1152000
+    | 1500000
+    | 2000000
+    | 2500000
+    | 3000000
+    | 3500000
+    | 4000000;
   dataBits?: DataBits;
   stopBits?: StopBits;
   parity?: Parity;
   flowControl?: FlowControl;
-  timeout?: number;
+  timeoutSeconds?: number;
 }
 
 export enum ClearBuffer {
