@@ -4,6 +4,7 @@ export interface Serial {
 
 export interface SerialPortInfo {
   name: string;
+  type?: string;
   friendlyName?: string;
   manufacturer?: string;
   usbVendorId?: number;

@@ -176,6 +176,9 @@ export function getPortsDarwin(): SerialPortInfo[] {
         if (result) {
           const name = readStringBuffer();
           const portInfo = getPortInfo(service, name);
+          if (name.startsWith("/dev/tty.usb")) {
+            portInfo.type = "USB"
+          }
           if (portInfo) {
             ports.push(portInfo);
           }

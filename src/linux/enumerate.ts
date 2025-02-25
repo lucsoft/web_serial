@@ -4,7 +4,8 @@ export async function getPortsLinux() {
   let ports = []
   for (const each of Deno.readDirSync("/dev/")) {
     if (!each.isDirectory && each.name.startsWith("tty")) {
-      ports.push({name:"/dev/" + each.name})
+      let type = name.startsWith("ttyUSB") ? "USB" : undefined
+      ports.push({name:"/dev/" + each.name, type})
     }
   }
   return ports
