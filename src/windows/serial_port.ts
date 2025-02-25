@@ -340,7 +340,10 @@ export class SerialPortWin implements SerialPort {
     return buffer.subarray(0, n)
   }
 
-  async write(p: Uint8Array): Promise<number> {
+  async write(p: Uint8Array | string): Promise<number> {
+    if (typeof p === "string") {
+      p = new TextEncoder().encode(p);
+    }
     const controller = new AbortController();
     const overlapped = new OverlappedPromise(this.#handle, controller.signal);
     // const bytes = new Uint32Array(1);
