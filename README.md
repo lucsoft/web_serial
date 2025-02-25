@@ -17,13 +17,13 @@ Serial Port API for Deno with zero third-party native dependencies.
 Run the following to list all available ports:
 
 ```sh
-deno run --allow-ffi -r https://raw.githubusercontent.com/DjDeveloperr/deno_serial/main/examples/print_ports.ts
+deno run --allow-ffi -r https://raw.githubusercontent.com/jeff-hykin/deno_serial/main/examples/print_ports.ts
 ```
 
 ## Usage
 
 ```ts
-import { getPorts, open } from "https://deno.land/x/serialport@0.1.0/mod.ts";
+import { getPorts, open } from "https://esm.sh/gh/jeff-hykin/deno_serial/mod.ts";
 
 const ports = getPorts();
 console.log("Ports:", ports);
