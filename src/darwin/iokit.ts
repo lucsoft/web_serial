@@ -2,7 +2,7 @@ import { cString } from "../common/util.ts";
 
 export const kIOSerialBSDServiceValue = cString("IOSerialBSDClient");
 
-export default Deno.dlopen("/System/Library/Frameworks/IOKit.framework/IOKit", {
+export default ()=>Deno.dlopen("/System/Library/Frameworks/IOKit.framework/IOKit", {
   IOServiceMatching: {
     parameters: ["buffer"],
     result: "pointer",
