@@ -359,7 +359,7 @@ export class SerialPortLinux implements AsyncDisposable {
             BigInt(bufferSize),
         )
         if (howManyBytes > 0) {
-            return buf.subarray(0,howManyBytes);
+            return buffer.subarray(0,howManyBytes);
         } else {
             await new Promise(r=>setTimeout(r,this?.options.waitTime??50))
         }
