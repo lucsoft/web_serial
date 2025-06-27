@@ -1,4 +1,5 @@
-const corefoundation = Deno.dlopen(
+let corefoundation
+const getCorefoundation = ()=>(corefoundation=corefoundation||Deno.dlopen(
   "/System/Library/Frameworks/CoreFoundation.framework/CoreFoundation",
   {
     CFStringCreateWithBytes: {
@@ -46,13 +47,13 @@ const corefoundation = Deno.dlopen(
       result: "bool",
     },
   },
-).symbols;
+).symbols);
 
-export default corefoundation;
+export default getCorefoundation;
 
 export function createCFString(str: string) {
   const buffer = new TextEncoder().encode(str);
-  return corefoundation.CFStringCreateWithBytes(
+  return getCorefoundation().CFStringCreateWithBytes(
     null,
     buffer,
     buffer.byteLength,
