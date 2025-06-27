@@ -1,5 +1,5 @@
 import { cString, Deferred } from "../common/util.ts";
-import nix, { UnixError, unwrap, CREAD, CLOCAL, PARENB, PARODD, CSTOPB, CSIZE, CS7, CS8, CRTSCTS, IXON, IXOFF, IXANY, ICANON, ECHO, ECHOE, ISIG, VMIN, VTIME, TCSANOW, F_SETFL, O_RDWR, O_NOCTTY, O_NDELAY, OPOST, INPCK, IGNPAR, } from "./nix.ts";
+import getNix, { UnixError, unwrap, CREAD, CLOCAL, PARENB, PARODD, CSTOPB, CSIZE, CS7, CS8, CRTSCTS, IXON, IXOFF, IXANY, ICANON, ECHO, ECHOE, ISIG, VMIN, VTIME, TCSANOW, F_SETFL, O_RDWR, O_NOCTTY, O_NDELAY, OPOST, INPCK, IGNPAR, } from "./nix.ts";
 import {
   SerialOptions,
   SerialOutputSignals,
@@ -32,6 +32,7 @@ function int64LittleEndianBytesToBigInt(uint8Array) {
 }
 
 let debug = false;
+let nix
 export class SerialPortDarwin implements SerialPort, AsyncDisposable {
   #info: SerialPortInfo;
   fd?: number;
@@ -40,6 +41,7 @@ export class SerialPortDarwin implements SerialPort, AsyncDisposable {
   #bufferSize?: number;
 
   constructor(name: string) {
+    nix = nix || getNix()
     this.#info = {name};
   }
   

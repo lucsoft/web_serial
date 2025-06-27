@@ -1,5 +1,6 @@
 // TODO: put errorno inside this open
-const nix = Deno.dlopen("libSystem.dylib", {
+let nix
+const getNix = (nix=nix||Deno.dlopen("libSystem.dylib", {
   open: {
     parameters: ["buffer", "i32", "i32"],
     result: "i32",
@@ -104,13 +105,14 @@ const nix = Deno.dlopen("libSystem.dylib", {
     result: "i32",
     // nonblocking: true,
   },
-}).symbols;
+}).symbols);
 
-export default nix;
+export default getNix;
 
 export class UnixError extends Error {
   errno: number;
   constructor(errno: number) {
+    getNix()
     const str = nix.strerror(errno);
     const jstr = Deno.UnsafePointerView.getCString(str!);
     super(`UnixError: ${errno}: ${jstr}`);
