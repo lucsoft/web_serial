@@ -312,7 +312,7 @@ export class SerialPortLinux implements AsyncDisposable {
             strOrBytes = new TextEncoder().encode(strOrBytes)
         }
         console.log(`strOrBytes is:`,strOrBytes)
-        const wlen = await library.symbols.write(this.#fd, Deno.UnsafePointer.of(strOrBytes), BigInt(strOrBytes.byteLength))
+        const wlen = await library.symbols.write(this.#fd, Deno.UnsafePointer.of(strOrBytes), BigInt(strOrBytes.byteLength-1))
         console.log(`wlen is:`,wlen)
         if (wlen < 0) {
             throw new Error(`Error while writing: ${await geterrnoString()}`)
