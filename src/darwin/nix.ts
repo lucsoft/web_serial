@@ -1,6 +1,6 @@
 // TODO: put errorno inside this open
 let nix
-const getNix = (nix=nix||Deno.dlopen("libSystem.dylib", {
+const getNix = ()=>(nix=nix||Deno.dlopen("libSystem.dylib", {
   open: {
     parameters: ["buffer", "i32", "i32"],
     result: "i32",
