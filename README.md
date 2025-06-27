@@ -28,7 +28,7 @@ import { getPorts, open } from "https://esm.sh/gh/jeff-hykin/deno_serial/mod.ts"
 const ports = await getPorts();
 console.log("Ports:", ports);
 
-const port = open({ name: ports[0].name, baudRate: 9600 });
+const port = await open({ name: ports[0].name, baudRate: 9600 });
 await port.write("Hello, world!");
 let data = await port.read()
 

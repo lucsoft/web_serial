@@ -24,6 +24,9 @@ SOFTWARE.
 
 import type { SerialOptions, SerialPortInfo } from "../common/web_serial.ts";
 
+export const settings = {
+    defaultLibcPath: null,
+}
 const O_RDWR = 0x2;
 const O_NOCTTY = 0x100;
 const O_SYNC = 0x101000;
@@ -87,62 +90,89 @@ function numberBaudrateToBaudrateValue(num: number) {
 }
 
 let library
-const getLibrary = ()=>(library=library||Deno.dlopen(
-  "/lib/libc.so.6",
-  {
-    open: {
-      parameters: ["pointer", "i32"],
-      result: "i32",
-      nonblocking: false,
-    },
-    close: {
-      parameters: ["i32"],
-      result: "i32",
-      nonblocking: false,
-    },
-    write: {
-      parameters: ["i32", "pointer", "usize"],
-      result: "isize",
-      nonblocking: false,
-    },
-    read: {
-      parameters: ["i32", "pointer", "usize"],
-      result: "isize",
-      nonblocking: true,
-    },
-    non_blocking__errno_location: {
-      parameters: [],
-      result: "pointer",
-      nonblocking: true,
-      name: "__errno_location",
-    },
-    __errno_location: {
-      parameters: [],
-      result: "pointer",
-      nonblocking: false,
-    },
-    strerror: {
-      parameters: ["i32"],
-      result: "pointer",
-      nonblocking: false,
-    },
-    tcgetattr: {
-      parameters: ["i32", "pointer"],
-      result: "i32",
-      nonblocking: false,
-    },
-    tcsetattr: {
-      parameters: ["i32", "i32", "pointer"],
-      result: "i32",
-      nonblocking: false,
-    },
-    cfsetspeed: {
-      parameters: ["pointer", "u32"],
-      result: "i32",
-      nonblocking: false,
-    },
-  } as const,
-));
+const getLibrary = ()=>{
+    if (library) {
+        return library
+    }
+    
+    const possibleLibs = [
+        settings.defaultLibcPath,
+        "/lib/libc.so.6",
+        "/lib64/libc.so.6",
+        "/lib64/libc.so.6",
+        "/usr/lib/aarch64-linux-gnu/libc.so.6",
+        "/usr/lib/aarch64-linux-gnu/libc.so",
+    ].filter(each=>each)
+    
+    for (let eachPath of possibleLibs) {
+        let exists = false
+        try {
+            Deno.statSync(eachPath)
+            exists = true
+        } catch (error) {
+            
+        }
+        if (exists) {
+            library = Deno.dlopen(
+                eachPath,
+                {
+                    open: {
+                    parameters: ["pointer", "i32"],
+                    result: "i32",
+                    nonblocking: false,
+                    },
+                    close: {
+                    parameters: ["i32"],
+                    result: "i32",
+                    nonblocking: false,
+                    },
+                    write: {
+                    parameters: ["i32", "pointer", "usize"],
+                    result: "isize",
+                    nonblocking: false,
+                    },
+                    read: {
+                    parameters: ["i32", "pointer", "usize"],
+                    result: "isize",
+                    nonblocking: true,
+                    },
+                    non_blocking__errno_location: {
+                    parameters: [],
+                    result: "pointer",
+                    nonblocking: true,
+                    name: "__errno_location",
+                    },
+                    __errno_location: {
+                    parameters: [],
+                    result: "pointer",
+                    nonblocking: false,
+                    },
+                    strerror: {
+                    parameters: ["i32"],
+                    result: "pointer",
+                    nonblocking: false,
+                    },
+                    tcgetattr: {
+                    parameters: ["i32", "pointer"],
+                    result: "i32",
+                    nonblocking: false,
+                    },
+                    tcsetattr: {
+                    parameters: ["i32", "i32", "pointer"],
+                    result: "i32",
+                    nonblocking: false,
+                    },
+                    cfsetspeed: {
+                    parameters: ["pointer", "u32"],
+                    result: "i32",
+                    nonblocking: false,
+                    },
+                } as const,
+            )
+            break
+        }
+    }
+};
 
 async function nonBlockingErrno() {
   getLibrary()
@@ -222,7 +252,6 @@ export class SerialPortLinux implements AsyncDisposable {
     if (options.parity !== undefined) {
       throw new Error("setting parity is not implemented");
     }
-
     if (
       options.bufferSize !== undefined && options.bufferSize <= 0
     ) {
@@ -234,29 +263,28 @@ export class SerialPortLinux implements AsyncDisposable {
     }
 
     this.options = options;
-    const buffer = new TextEncoder().encode(this.filename);
+    const buffer = new TextEncoder().encode(options.name);
     const fd = await library.symbols.open(
       Deno.UnsafePointer.of(buffer),
       O_RDWR | O_NOCTTY | O_SYNC,
     );
-
+    
     if (fd < 0) {
       throw new Error(
-        `Couldn't open '${this.filename}': ${await geterrnoString()}`,
+        `Couldn't open '${options.name}': ${await geterrnoString()}`,
       );
     }
 
     // termios tty{};
     const tty = new ArrayBuffer(100);
     const ttyPtr = Deno.UnsafePointer.of(tty);
-
     if (await library.symbols.tcgetattr(fd, ttyPtr) != 0) {
       SerialPortLinux._internalClose(fd);
       throw new Error(`tcgetattr: ${await geterrnoString()}`);
     }
 
     await library.symbols.cfsetspeed(ttyPtr, baudRate);
-
+    
     const dataView = new DataView(tty);
     const littleEndian = is_platform_little_endian();
     dataView.setUint32(0, 0, littleEndian); // c_iflag
@@ -294,7 +322,6 @@ export class SerialPortLinux implements AsyncDisposable {
       SerialPortLinux._internalClose(fd);
       throw new Error(`tcsetattr: ${await geterrnoString()}`);
     }
-
     this.#fd = fd;
     this.#state = "opened";
   }
@@ -342,8 +369,6 @@ export class SerialPortLinux implements AsyncDisposable {
   async close() {
     const fd = this.#fd;
     this.#fd = undefined;
-    this.#writable = null;
-    this.#readable = null;
     await SerialPortLinux._internalClose(fd);
   }
 

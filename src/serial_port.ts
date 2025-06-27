@@ -28,7 +28,7 @@ export async function open(options: SerialOpenOptions) : Promise<SerialPort> {
         return port
     } else if (Deno.build.os === "linux") {
         const port = (new SerialPortLinux(options.name))
-        port.open(options)
+        await port.open(options)
         return port
     } else {
         throw new Error(`Unsupported OS: ${Deno.build.os}`)
