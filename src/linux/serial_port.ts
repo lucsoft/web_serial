@@ -86,7 +86,8 @@ function numberBaudrateToBaudrateValue(num: number) {
   throw new Error("unsupported baudrate");
 }
 
-const library = Deno.dlopen(
+let library
+const getLibrary = ()=>(library=library||Deno.dlopen(
   "/lib/libc.so.6",
   {
     open: {
@@ -141,9 +142,10 @@ const library = Deno.dlopen(
       nonblocking: false,
     },
   } as const,
-);
+));
 
 async function nonBlockingErrno() {
+  getLibrary()
   const ret = await library.symbols.non_blocking__errno_location();
   if (ret === null) {
     return 0;
@@ -153,6 +155,7 @@ async function nonBlockingErrno() {
 }
 
 async function errno() {
+    getLibrary()
   const ret = await library.symbols.__errno_location();
   if (ret === null) {
     return 0;
@@ -162,6 +165,7 @@ async function errno() {
 }
 
 async function strerror(errnum: number) {
+  getLibrary()
   const ret = await library.symbols.strerror(errnum);
   if (ret === null) {
     return "";
@@ -184,12 +188,13 @@ function is_platform_little_endian(): boolean {
   return new Int16Array(buffer)[0] === 256;
 }
 
-export class LinuxSerialPort implements AsyncDisposable {
+export class SerialPortLinux implements AsyncDisposable {
   #fd: number | undefined;
   #state: "opened" | "closed" | "uninitialized" = "uninitialized";
   options: SerialOptions | undefined;
 
   constructor(name) {
+    getLibrary()
     this.name = name;
   }
   
@@ -246,7 +251,7 @@ export class LinuxSerialPort implements AsyncDisposable {
     const ttyPtr = Deno.UnsafePointer.of(tty);
 
     if (await library.symbols.tcgetattr(fd, ttyPtr) != 0) {
-      LinuxSerialPort._internalClose(fd);
+      SerialPortLinux._internalClose(fd);
       throw new Error(`tcgetattr: ${await geterrnoString()}`);
     }
 
@@ -286,7 +291,7 @@ export class LinuxSerialPort implements AsyncDisposable {
     dataView.setUint8(17 + VMIN, options.minimumNumberOfCharsRead ?? 0);
 
     if (await library.symbols.tcsetattr(fd, TCSANOW, ttyPtr) != 0) {
-      LinuxSerialPort._internalClose(fd);
+      SerialPortLinux._internalClose(fd);
       throw new Error(`tcsetattr: ${await geterrnoString()}`);
     }
 
@@ -339,7 +344,7 @@ export class LinuxSerialPort implements AsyncDisposable {
     this.#fd = undefined;
     this.#writable = null;
     this.#readable = null;
-    await LinuxSerialPort._internalClose(fd);
+    await SerialPortLinux._internalClose(fd);
   }
 
   static async _internalClose(fd: number | undefined) {

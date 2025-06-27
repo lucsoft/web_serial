@@ -5,6 +5,7 @@ import { getPortsWin, SerialPortWin } from "./windows/mod.ts"
 import { getPortsDarwin } from "./darwin/enumerate.ts"
 import { SerialPortDarwin } from "./darwin/serial_port.ts"
 import { getPortsLinux } from "./linux/enumerate.ts"
+import { SerialPortLinux } from "./linux/serial_port.ts"
 
 export function getPorts() : SerialPortInfo[] {
     if (Deno.build.os === "windows") {
