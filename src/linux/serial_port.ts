@@ -327,7 +327,7 @@ export class SerialPortLinux implements AsyncDisposable {
         const bufferSize = this?.options?.bufferSize ?? 255
         const buffer = new Uint8Array(bufferSize + 1)
         while (true) {
-            const howManyBytes = await library.symbols.read(this.#fd, Deno.UnsafePointer.of(buffer), BigInt(bufferSize))
+            let howManyBytes = await library.symbols.read(this.#fd, Deno.UnsafePointer.of(buffer), BigInt(bufferSize))
             if (typeof howManyBytes === "bigint") {
                 howManyBytes = Number(howManyBytes)
             }
