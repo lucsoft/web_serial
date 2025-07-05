@@ -254,6 +254,9 @@ export class SerialPortDarwin implements SerialPort, AsyncDisposable {
     const buf = new Uint8Array(this.#bufferSize+1);
     while (true) {
         let howManyBytes = unwrap(nix.read(this.fd, buf, this.#bufferSize));
+        if (typeof howManyBytes === "bigint") {
+            howManyBytes = Number(howManyBytes)
+        }
         if (howManyBytes > 0) {
             return buf.subarray(0,howManyBytes);
         } else {
