@@ -315,7 +315,7 @@ export class SerialPortLinux implements AsyncDisposable {
         if (wlen < 0) {
             throw new Error(`Error while writing: ${await geterrnoString()}`)
         }
-        if (Number(wlen) !== data.byteLength) {
+        if (Number(wlen) !== strOrBytes.byteLength) {
             throw new Error("Couldn't write data")
         }
     }
