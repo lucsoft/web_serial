@@ -6,11 +6,11 @@
 
 Serial Port API for Deno with zero third-party native dependencies.
 
-| Platform | `getPorts` | `open` |
-| -------- | ---------- | ------ |
-| macOS    | ✅         | ✅     |
-| Linux    | ✅         | ✅     |
-| Windows  | ✅         | ✅     |
+| Platform | `getPorts` | `open` |`write` |
+| -------- | ---------- | ------ |------ |
+| macOS    | ✅         | ✅     | ✅     |
+| Linux    | ✅         | ✅     | ✅     |
+| Windows  | ✅         | ✅     | ❔     |
 
 ## Try out
 
