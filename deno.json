@@ -1,6 +1,19 @@
 {
-  "tasks": {
-    "print-ports": "deno run --allow-ffi --unstable examples/print_ports.ts",
-    "test": "cargo build --lib && deno run -A test2.ts"
-  }
+    "name": "@lucsoft/web-serial",
+    "version": "0.1.0",
+    "license": "MIT",
+    "exports": "./mod.ts",
+    "tasks": {
+        "print-ports": "deno run --allow-ffi --unstable examples/print_ports.ts",
+        "test": "cargo build --lib && deno run -A test2.ts"
+    },
+    "compilerOptions": {
+        "types": [
+            "@types/w3c-web-serial/index.d.ts"
+        ]
+    },
+    "imports": {
+        "@std/assert": "jsr:@std/assert@^1.0.13",
+        "@types/w3c-web-serial": "npm:@types/w3c-web-serial@^1.0.8"
+    }
 }

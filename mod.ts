@@ -1,6 +1,4 @@
-import 'https://esm.sh/v135/@types/w3c-web-serial/index.d.ts';
-
-import { fail, assert } from "jsr:@std/assert";
+import { fail, assert } from "@std/assert";
 const WEB_SERIAL_PATH = "./target/debug";
 
 const OS_PREFIX = Deno.build.os === "windows" ? "" : "lib";
@@ -76,7 +74,7 @@ interface UsbPortDevice {
 }
 
 
-export class InternalSerialPort implements Disposable {
+class InternalSerialPort implements Disposable {
 
     static getPorts(): UsbPortDevice[] {
         const ptr = lib.symbols.wsa_get_ports();
