@@ -1,44 +1,28 @@
-# Deno SerialPort
+# WebSerial Polyfill for Deno
 
-[![Tags](https://img.shields.io/github/release/DjDeveloperr/deno_serial)](https://github.com/DjDeveloperr/deno_serial/releases)
-[![License](https://img.shields.io/github/license/DjDeveloperr/deno_serial)](https://github.com/DjDeveloperr/deno_serial/blob/master/LICENSE)
-[![Sponsor](https://img.shields.io/static/v1?label=Sponsor&message=%E2%9D%A4&logo=GitHub&color=%23fe8e86)](https://github.com/sponsors/DjDeveloperr)
-
-Serial Port API for Deno with zero third-party native dependencies.
-
-| Platform | `getPorts` | `open` |`write` |
-| -------- | ---------- | ------ |------ |
-| macOS    | ✅         | ✅     | ✅     |
-| Linux    | ✅         | ✅     | ✅     |
-| Windows  | ✅         | ✅     | ❔     |
-
-## Try out
-
-Run the following to list all available ports:
-
-```sh
-deno run --allow-ffi -r https://raw.githubusercontent.com/jeff-hykin/deno_serial/main/examples/print_ports.ts
-```
+This project provides a polyfill for the [Web Serial API](https://developer.mozilla.org/en-US/docs/Web/API/Web_Serial_API) in [Deno](https://deno.com/), enabling serial port communication in Deno applications using a familiar web-compatible interface.
 
 ## Usage
 
-```ts
-import { getPorts, open } from "https://esm.sh/gh/jeff-hykin/deno_serial/mod.ts";
+Currently, this project does not ship any pre-built binaries. To use the polyfill, you need to build the native adapter yourself:
 
-const ports = await getPorts();
-console.log("Ports:", ports);
+1. Clone the repository and navigate to its directory.
+2. Build the native binary using Cargo:
 
-const port = await open({ name: ports[0].name, baudRate: 9600 });
-await port.write("Hello, world!");
-let data = await port.read()
+    ```sh
+    cargo build --release
+    ```
 
-// ...
+3. Set the `WEB_SERIAL_PATH` environment variable to the folder containing the compiled binary (typically `target/release`):
 
-port.close();
-```
+    ```sh
+    export WEB_SERIAL_PATH=/path/to/deno_serial/target/release
+    ```
+
+4. Use the polyfill in your Deno project as documented.
+
+Make sure you have [Rust and Cargo](https://www.rust-lang.org/tools/install) installed.
 
 ## License
 
 Apache-2.0. Check [LICENSE](./LICENSE) for more information.
-
-Copyright © 2022-2023 DjDeveloperr

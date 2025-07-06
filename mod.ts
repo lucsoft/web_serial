@@ -1,5 +1,6 @@
 import { fail, assert } from "@std/assert";
-const WEB_SERIAL_PATH = "./target/debug";
+
+const WEB_SERIAL_PATH = Deno.env.get("WEB_SERIAL_PATH") || "./target/debug";
 
 const OS_PREFIX = Deno.build.os === "windows" ? "" : "lib";
 const OS_SUFFIX = Deno.build.os === "windows"
