@@ -1,13 +1,22 @@
-import { delay } from "jsr:@std/async";
-import { InternalSerialPort } from "../mod.ts"
+import "../mod.ts";
+import { delay } from "jsr:@std/async/delay";
+
+const port = await navigator.serial.requestPort();
+await port.open({ baudRate: 115200 });
+
+port.readable!
+    .pipeThrough(new TextDecoderStream())
+    .pipeTo(new WritableStream({
+        write(chunk) {
+            console.log(chunk.trim());
+        }
+    }));
+
+const writer = port.writable!.getWriter();
 
 while (true) {
-    using port = new InternalSerialPort("/dev/tty.usbserial-10", 115200);
-
-    for (let index = 0; index < 10; index++) {
-        await port.writeTextLine("ON");
-        await delay(20);
-        await port.writeTextLine("OFF");
-        await delay(20);
-    }
+    await writer.write(new TextEncoder().encode("ON\n"));
+    await delay(10);
+    await writer.write(new TextEncoder().encode("OFF\n"));
+    await delay(100);
 }
