@@ -16,7 +16,7 @@ const writer = port.writable!.getWriter();
 
 while (true) {
     await writer.write(new TextEncoder().encode("ON\n"));
-    await delay(10);
+    await delay(100);
     await writer.write(new TextEncoder().encode("OFF\n"));
     await delay(100);
 }
