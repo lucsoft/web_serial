@@ -1,17 +1,35 @@
+String inputString = "";
+bool stringComplete = false;
+
 void setup() {
-  pinMode(LED_BUILTIN, OUTPUT);
-  Serial.begin(9600);
+  Serial.begin(115200);
+  inputString.reserve(200);
+
+  pinMode(2, OUTPUT);
 }
 
 void loop() {
-  while (Serial.available() > 0) {
-    int msg = Serial.read();
-    if (msg == 1) {
-      digitalWrite(LED_BUILTIN, HIGH);
-      Serial.println("LED  ON");
-    } else if (msg == 2) {
-      digitalWrite(LED_BUILTIN, LOW);
-      Serial.println("LED OFF");
+  if (stringComplete) {
+    inputString.trim();
+    if (inputString == "ON") {
+      digitalWrite(2, HIGH);
+    }
+    else if (inputString == "OFF") {
+      digitalWrite(2, LOW);
+    }
+    Serial.println(inputString);
+    // clear the string:
+    inputString = "";
+    stringComplete = false;
+  }
+}
+
+void serialEvent() {
+  while (Serial.available()) {
+    char inChar = (char)Serial.read();
+    inputString += inChar;
+    if (inChar == '\n') {
+      stringComplete = true;
     }
   }
 }

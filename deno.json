@@ -1,5 +1,6 @@
 {
   "tasks": {
-    "print-ports": "deno run --allow-ffi --unstable examples/print_ports.ts"
+    "print-ports": "deno run --allow-ffi --unstable examples/print_ports.ts",
+    "test": "cargo build --lib && deno run -A test2.ts"
   }
 }

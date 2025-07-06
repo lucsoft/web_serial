@@ -1,25 +1,13 @@
-import { getPorts, open, USBPortInfo } from "../mod.ts";
-
-const portInfo = getPorts().find((port) => port.type === "USB") as USBPortInfo;
-if (!portInfo) {
-  throw new Error("No serial ports found.");
-}
-
-const port = open({ name: portInfo.name, baudRate: 9600 });
-console.log("Opened port:", portInfo.friendlyName);
-
-let on = false;
-setInterval(async () => {
-  on = !on;
-  await port.write(new Uint8Array([on ? 0x01 : 0x02]));
-}, 1000);
+import { delay } from "jsr:@std/async";
+import { InternalSerialPort } from "../mod.ts"
 
 while (true) {
-    console.log(
-        "read bytes:",
-        await port.read()
-    );
-}
-(async () => {
-})();
+    using port = new InternalSerialPort("/dev/tty.usbserial-10", 115200);
 
+    for (let index = 0; index < 10; index++) {
+        await port.writeTextLine("ON");
+        await delay(20);
+        await port.writeTextLine("OFF");
+        await delay(20);
+    }
+}
